@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars locally. Do not commit real values.
+# Region and image URI come from your environment; never commit account IDs.
+
+aws_region       = "us-east-1"
+environment      = "dev"
+project_name     = "cw-ai-logs"
+container_image  = "public.ecr.aws/example/cloudwatch-ai-log-intelligence:latest"
+enable_bedrock   = false
+desired_count    = 1
