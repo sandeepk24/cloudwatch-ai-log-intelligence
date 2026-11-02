@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError, CredentialRetrievalError, NoCredent
 from app.adapters.aws.base import (
     AWSAccessDeniedError,
     AWSCredentialsError,
+    AWSFeatureNotSupportedError,
     AWSResourceNotFoundError,
     AWSThrottlingError,
 )
@@ -37,6 +38,18 @@ ACCESS_DENIED_ERROR_CODES = frozenset(
         "AccessDenied",
         "AccessDeniedException",
         "UnauthorizedOperation",
+    }
+)
+
+# Error codes that indicate a feature (pattern command, anomaly detection
+# APIs) is unavailable rather than a hard failure -- callers should fall
+# back to local statistical computation instead of surfacing an error.
+FEATURE_UNSUPPORTED_ERROR_CODES = frozenset(
+    {
+        "UnrecognizedClientException",
+        "UnsupportedOperationException",
+        "ValidationException",
+        "MalformedQueryException",
     }
 )
 
@@ -313,4 +326,112 @@ class BotoCloudWatchLogsAdapter:
 
         except ClientError as e:
             _handle_client_error(e, "describe_queries")
+            raise
+
+    # -------------------------------------------------------------------
+    # Optional native pattern analysis / anomaly detection
+    # -------------------------------------------------------------------
+    # These wrap CloudWatch Logs Insights' `pattern` query command and the
+    # managed Log Anomaly Detection APIs. Both are treated as *optional*:
+    # older botocore versions, some regions, or restrictive IAM policies may
+    # not support them, in which case we raise AWSFeatureNotSupportedError
+    # so callers (see app.services.pattern_analysis) can fall back to local
+    # statistical computation rather than failing the whole request.
+
+    async def start_pattern_query(
+        self,
+        log_group_names: list[str],
+        start_time: int,
+        end_time: int,
+        message_filter: str | None = None,
+        limit: int = 1000,
+    ) -> str:
+        """Start a CloudWatch Logs Insights query using the `pattern`
+        command, which clusters matching log lines into shapes server-side.
+        """
+        query_string = "pattern @message"
+        if message_filter:
+            query_string = f"filter @message like /{message_filter}/ | {query_string}"
+
+        try:
+            return await self.start_insights_query(
+                log_group_names=log_group_names,
+                query_string=query_string,
+                start_time=start_time,
+                end_time=end_time,
+                limit=limit,
+            )
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in FEATURE_UNSUPPORTED_ERROR_CODES:
+                raise AWSFeatureNotSupportedError(
+                    f"Logs Insights `pattern` command is not supported/permitted here: {e}"
+                ) from e
+            raise
+
+    async def list_log_anomaly_detectors(
+        self,
+        log_group_arn_list: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List configured CloudWatch Log Anomaly Detectors.
+
+        Raises AWSFeatureNotSupportedError if the account's botocore version
+        predates this API, or if the call is otherwise unsupported/denied
+        for reasons that indicate the *feature* (not just this call) is
+        unavailable.
+        """
+        client = self._get_client()
+        list_fn = getattr(client, "list_log_anomaly_detectors", None)
+        if list_fn is None:
+            raise AWSFeatureNotSupportedError(
+                "This botocore version does not support list_log_anomaly_detectors."
+            )
+
+        params: dict[str, Any] = {}
+        if log_group_arn_list:
+            params["filterLogGroupArns"] = log_group_arn_list
+
+        try:
+            response = await self._run_sync(list_fn, **params)
+            return response.get("anomalyDetectors", [])
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in FEATURE_UNSUPPORTED_ERROR_CODES:
+                raise AWSFeatureNotSupportedError(
+                    f"Log Anomaly Detection is not supported/permitted here: {e}"
+                ) from e
+            _handle_client_error(e, "list_log_anomaly_detectors")
+            raise
+
+    async def list_anomalies(
+        self,
+        anomaly_detector_arn: str,
+        suppression_state: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """List anomalies reported by a configured Log Anomaly Detector."""
+        client = self._get_client()
+        list_fn = getattr(client, "list_anomalies", None)
+        if list_fn is None:
+            raise AWSFeatureNotSupportedError(
+                "This botocore version does not support list_anomalies."
+            )
+
+        params: dict[str, Any] = {
+            "anomalyDetectorArn": anomaly_detector_arn,
+            "limit": limit,
+        }
+        if suppression_state:
+            params["suppressionState"] = suppression_state
+
+        try:
+            response = await self._run_sync(list_fn, **params)
+            return response.get("anomalies", [])
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code in FEATURE_UNSUPPORTED_ERROR_CODES:
+                raise AWSFeatureNotSupportedError(
+                    f"Log Anomaly Detection is not supported/permitted here: {e}"
+                ) from e
+            _handle_client_error(e, "list_anomalies")
             raise
