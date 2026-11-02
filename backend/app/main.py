@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api.analytics import router as analytics_router
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
         return LivenessResponse(status="ok", version=settings.app_version)
 
     application.include_router(api_router)
+    application.include_router(analytics_router, prefix="/api")
 
     @application.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
