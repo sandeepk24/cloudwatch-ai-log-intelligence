@@ -8,6 +8,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from app.adapters.aws.base import AWSFeatureNotSupportedError
 from app.core.logging import get_logger
 from app.schemas.logs import QueryStatus
 
@@ -143,6 +144,7 @@ class MockQueryState:
             "created_at": time.time(),
             "status": QueryStatus.RUNNING.value,
             "poll_count": 0,
+            "is_pattern": "pattern @message" in query_string,
         }
 
     def get_results(self, query_id: str) -> dict[str, Any]:
@@ -165,6 +167,8 @@ class MockQueryState:
 
         # Mark as complete and return results
         query["status"] = QueryStatus.COMPLETE.value
+        if query.get("is_pattern"):
+            return self._generate_pattern_results(query_id, QueryStatus.COMPLETE.value)
         return self._generate_results(query_id, QueryStatus.COMPLETE.value)
 
     def stop_query(self, query_id: str) -> bool:
@@ -219,6 +223,37 @@ class MockQueryState:
                 "recordsMatched": float(len(events)),
                 "recordsScanned": float(len(events) * random.randint(10, 100)),
                 "bytesScanned": float(len(events) * random.randint(1000, 10000)),
+            },
+        }
+
+    def _generate_pattern_results(self, query_id: str, status: str) -> dict[str, Any]:
+        """Generate mock results approximating a CloudWatch Logs Insights
+        `pattern` command: one row per clustered pattern with a sample
+        count and severity label, rather than one row per raw event.
+
+        This is a local approximation for development only; it is not a
+        faithful reproduction of CloudWatch's pattern-clustering algorithm.
+        """
+        rows = []
+        for level, message in MOCK_MESSAGES:
+            sample_count = random.randint(3, 60)
+            rows.append(
+                [
+                    {"field": "@pattern", "value": message.split(":")[0][:60]},
+                    {"field": "@sampleCount", "value": str(sample_count)},
+                    {"field": "@severityLabel", "value": level},
+                    {"field": "@logSamples", "value": f"{level} {message}"},
+                ]
+            )
+
+        return {
+            "queryId": query_id,
+            "status": status,
+            "results": rows,
+            "statistics": {
+                "recordsMatched": float(len(rows)),
+                "recordsScanned": float(len(rows) * random.randint(50, 200)),
+                "bytesScanned": float(len(rows) * random.randint(2000, 20000)),
             },
         }
 
@@ -348,6 +383,49 @@ class MockCloudWatchLogsAdapter:
             query["_region"] = self.region
 
         return queries
+
+    async def start_pattern_query(
+        self,
+        log_group_names: list[str],
+        start_time: int,
+        end_time: int,
+        message_filter: str | None = None,
+        limit: int = 1000,
+    ) -> str:
+        """Mock equivalent of the Logs Insights `pattern` command."""
+        query_string = "pattern @message"
+        if message_filter:
+            query_string = f"filter @message like /{message_filter}/ | {query_string}"
+        return await self.start_insights_query(
+            log_group_names=log_group_names,
+            query_string=query_string,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit,
+        )
+
+    async def list_log_anomaly_detectors(
+        self,
+        log_group_arn_list: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Mock mode has no managed anomaly detector configured by default,
+        matching the common real-world case where this optional feature has
+        not been opted into for an account."""
+        logger.debug("Mock list_log_anomaly_detectors (none configured)")
+        return []
+
+    async def list_anomalies(
+        self,
+        anomaly_detector_arn: str,
+        suppression_state: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """No detector is configured in mock mode, so this always reports
+        the feature as unsupported -- exercising the same fallback path a
+        live account without an anomaly detector would take."""
+        raise AWSFeatureNotSupportedError(
+            "No Log Anomaly Detector is configured in mock mode."
+        )
 
 
 class MockCloudWatchMetricsAdapter:
