@@ -45,6 +45,16 @@ class ScanBudgetExceededError(Exception):
     """Raised when the scan budget limit is exceeded."""
 
 
+class AWSFeatureNotSupportedError(Exception):
+    """Raised when an optional CloudWatch feature (e.g. the Logs Insights
+    `pattern` command, or ML-based Log Anomaly Detection) is not available
+    in the current region, account, botocore version, or permission set.
+
+    Callers should catch this and fall back to local statistical
+    computation rather than failing the whole request.
+    """
+
+
 @runtime_checkable
 class CloudWatchLogsPort(Protocol):
     """Port for CloudWatch Logs operations."""
