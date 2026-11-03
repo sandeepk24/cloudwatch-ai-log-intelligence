@@ -47,8 +47,11 @@ def build_capabilities() -> CapabilitiesData:
             detail="Log-to-metric correlation is not implemented",
         ),
         reasoning=ModuleStatus(
-            status="skeleton",
-            detail="Bedrock and Strands providers are stubs in this milestone",
+            status="available" if settings.bedrock_configured or settings.bedrock_use_mock_responses else "disabled",
+            detail=(
+                "Investigation agent (read-only tools) via Bedrock mock/live; "
+                "Strands optional fallback orchestrator"
+            ),
         ),
     )
 

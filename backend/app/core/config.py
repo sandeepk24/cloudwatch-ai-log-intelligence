@@ -60,7 +60,18 @@ class Settings(BaseSettings):
     ai_provider: str = "bedrock"
     bedrock_enabled: bool = False
     bedrock_model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    bedrock_use_mock_responses: bool = True
     strands_enabled: bool = False
+
+    # Investigation agent budgets (read-only tools)
+    agent_max_iterations: int = Field(default=5, ge=1, le=10)
+    agent_max_tool_calls_per_run: int = Field(default=12, ge=1, le=30)
+    agent_max_output_tokens: int = Field(default=2048, ge=256, le=8192)
+    agent_max_context_messages: int = Field(default=20, ge=4, le=50)
+    agent_max_log_groups_per_tool: int = Field(default=10, ge=1, le=20)
+    agent_max_tool_result_chars: int = Field(default=12000, ge=1000, le=50000)
+    agent_token_budget_warn: int = Field(default=24000, ge=1000)
+    agent_token_budget_hard: int = Field(default=48000, ge=2000)
 
     @property
     def resolved_aws_region(self) -> str | None:

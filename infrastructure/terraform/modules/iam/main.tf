@@ -50,6 +50,18 @@ data "aws_iam_policy_document" "investigation_readonly" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid = "ECSDeploymentMetadataReadOnly"
+    actions = [
+      "ecs:ListServices",
+      "ecs:DescribeServices",
+      "ecs:ListTasks",
+      "ecs:DescribeTasks",
+      "ecs:DescribeTaskDefinition",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "investigation_readonly" {
