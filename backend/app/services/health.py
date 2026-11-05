@@ -43,8 +43,11 @@ def build_capabilities() -> CapabilitiesData:
             detail="Error clustering and burst detection are not implemented",
         ),
         correlation=ModuleStatus(
-            status="skeleton",
-            detail="Log-to-metric correlation is not implemented",
+            status="available",
+            detail=(
+                "Cross-service incident correlation engine (timeline, deployment deltas, "
+                "evidence-backed hypotheses); POST /api/v1/incidents/analyze"
+            ),
         ),
         reasoning=ModuleStatus(
             status="available" if settings.bedrock_configured or settings.bedrock_use_mock_responses else "disabled",

@@ -43,3 +43,31 @@ body {
 * {
   @apply border-border;
 }
+
+/* Light theme — AWS-inspired console (orange accent on light gray) */
+:root.light {
+  --color-border: oklch(0.88 0.01 240);
+  --color-input: oklch(0.92 0.01 240);
+  --color-ring: oklch(0.55 0.18 210);
+  --color-background: oklch(0.98 0.005 240);
+  --color-foreground: oklch(0.22 0.02 250);
+  --color-primary: oklch(0.52 0.16 210);
+  --color-primary-foreground: oklch(0.99 0 0);
+  --color-secondary: oklch(0.94 0.01 240);
+  --color-secondary-foreground: oklch(0.25 0.02 250);
+  --color-muted: oklch(0.94 0.008 240);
+  --color-muted-foreground: oklch(0.48 0.02 250);
+  --color-accent: oklch(0.93 0.015 230);
+  --color-accent-foreground: oklch(0.22 0.02 250);
+  --color-destructive: oklch(0.55 0.22 25);
+  --color-destructive-foreground: oklch(0.99 0 0);
+  --color-success: oklch(0.45 0.14 155);
+  --color-success-foreground: oklch(0.99 0 0);
+  --color-warning: oklch(0.62 0.16 75);
+  --color-warning-foreground: oklch(0.2 0.03 250);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.22 0.02 250);
+  --color-sidebar: oklch(0.96 0.008 240);
+  --color-sidebar-foreground: oklch(0.42 0.02 250);
+  --color-sidebar-active: oklch(0.18 0.03 250);
+}
